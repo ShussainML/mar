@@ -38,8 +38,13 @@ class MAR(nn.Module):
                  num_sampling_steps='100',
                  diffusion_batch_mul=4,
                  grad_checkpointing=False,
-                 ):
+                 device=None):  # Add device as an argument
         super().__init__()
+
+        # Set the device
+        self.device = device if device is not None else torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        # Rest of the initialization code...
 
         # --------------------------------------------------------------------------
         # VAE and patchify specifics
