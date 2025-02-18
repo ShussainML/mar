@@ -20,8 +20,6 @@ def mask_by_order(mask_len, order, bsz, seq_len):
 
 
 class MAR(nn.Module):
-    """ Masked Autoencoder with VisionTransformer backbone
-    """
     def __init__(self, img_size=256, vae_stride=16, patch_size=1,
                  encoder_embed_dim=1024, encoder_depth=16, encoder_num_heads=16,
                  decoder_embed_dim=1024, decoder_depth=16, decoder_num_heads=16,
@@ -29,7 +27,7 @@ class MAR(nn.Module):
                  vae_embed_dim=16,
                  mask_ratio_min=0.7,
                  label_drop_prob=0.1,
-                 class_num=1000,
+                 class_num=1000,  # Number of classes (can be adjusted)
                  attn_dropout=0.1,
                  proj_dropout=0.1,
                  buffer_size=64,
@@ -38,12 +36,11 @@ class MAR(nn.Module):
                  num_sampling_steps='100',
                  diffusion_batch_mul=4,
                  grad_checkpointing=False,
-                 device=None):  # Add device as an argument
+                 device=None):
         super().__init__()
-
-        # Set the device
-        self.device = device if device is not None else torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+        self.num_classes = class_num
+        self.class_emb = nn.Embedding(class_num, encoder_embed_dim)
+        # Rest of the initialization...
         # --------------------------------------------------------------------------
         # VAE and patchify specifics
         self.vae_embed_dim = vae_embed_dim
@@ -148,18 +145,26 @@ class MAR(nn.Module):
         x = x.reshape(bsz, c, h_patches, p, w_patches, p)
         x = x.permute(0, 2, 4, 1, 3, 5)  # (bsz, h_patches, w_patches, c, p, p)
         x = x.reshape(bsz, h_patches * w_patches, c * p * p)  # (bsz, num_patches, patch_embed_dim)
-    return x
+        return x
 
     def unpatchify(self, x):
+        """
+        Convert patches back into images.
+        Args:
+            x: Input tensor of shape (batch_size, num_patches, patch_embed_dim).
+        Returns:
+            Tensor of shape (batch_size, channels, height, width).
+        """
         bsz = x.shape[0]
         p = self.patch_size
         c = self.vae_embed_dim
-        h_, w_ = self.seq_h, self.seq_w
-
-        x = x.reshape(bsz, h_, w_, c, p, p)
+        h_patches = int(np.sqrt(x.shape[1]))  # Compute number of patches dynamically
+        w_patches = h_patches
+    
+        x = x.reshape(bsz, h_patches, w_patches, c, p, p)
         x = torch.einsum('nhwcpq->nchpwq', x)
-        x = x.reshape(bsz, c, h_ * p, w_ * p)
-        return x  # [n, c, h, w]
+        x = x.reshape(bsz, c, h_patches * p, w_patches * p)
+        return x
 
     def sample_orders(self, bsz):
         # generate a batch of random generation orders
