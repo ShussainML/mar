@@ -134,14 +134,23 @@ class MAR(nn.Module):
                 nn.init.constant_(m.weight, 1.0)
 
     def patchify(self, x):
-        bsz, c, h, w = x.shape
-        p = self.patch_size
-        h_, w_ = h // p, w // p
+    """
+    Convert images into patches.
+    Args:
+        x: Input tensor of shape (batch_size, channels, height, width).
+    Returns:
+        Tensor of shape (batch_size, num_patches, patch_embed_dim).
+    """
+    bsz, c, h, w = x.shape
+    p = self.patch_size
+    h_patches = h // p
+    w_patches = w // p
 
-        x = x.reshape(bsz, c, h_, p, w_, p)
-        x = torch.einsum('nchpwq->nhwcpq', x)
-        x = x.reshape(bsz, h_ * w_, c * p ** 2)
-        return x  # [n, l, d]
+    # Reshape into patches
+    x = x.reshape(bsz, c, h_patches, p, w_patches, p)
+    x = x.permute(0, 2, 4, 1, 3, 5)  # (bsz, h_patches, w_patches, c, p, p)
+    x = x.reshape(bsz, h_patches * w_patches, c * p * p)  # (bsz, num_patches, patch_embed_dim)
+    return x
 
     def unpatchify(self, x):
         bsz = x.shape[0]
