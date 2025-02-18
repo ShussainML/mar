@@ -143,12 +143,12 @@ class MAR(nn.Module):
         p = self.patch_size
         h_patches = h // p
         w_patches = w // p
-
+    
         # Reshape into patches
         x = x.reshape(bsz, c, h_patches, p, w_patches, p)
         x = x.permute(0, 2, 4, 1, 3, 5)  # (bsz, h_patches, w_patches, c, p, p)
         x = x.reshape(bsz, h_patches * w_patches, c * p * p)  # (bsz, num_patches, patch_embed_dim)
-        return x
+    return x
 
     def unpatchify(self, x):
         bsz = x.shape[0]
