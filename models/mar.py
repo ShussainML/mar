@@ -44,8 +44,6 @@ class MAR(nn.Module):
         # Set the device
         self.device = device if device is not None else torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        # Rest of the initialization code...
-
         # --------------------------------------------------------------------------
         # VAE and patchify specifics
         self.vae_embed_dim = vae_embed_dim
@@ -134,23 +132,23 @@ class MAR(nn.Module):
                 nn.init.constant_(m.weight, 1.0)
 
     def patchify(self, x):
-    """
-    Convert images into patches.
-    Args:
-        x: Input tensor of shape (batch_size, channels, height, width).
-    Returns:
-        Tensor of shape (batch_size, num_patches, patch_embed_dim).
-    """
-    bsz, c, h, w = x.shape
-    p = self.patch_size
-    h_patches = h // p
-    w_patches = w // p
+        """
+        Convert images into patches.
+        Args:
+            x: Input tensor of shape (batch_size, channels, height, width).
+        Returns:
+            Tensor of shape (batch_size, num_patches, patch_embed_dim).
+        """
+        bsz, c, h, w = x.shape
+        p = self.patch_size
+        h_patches = h // p
+        w_patches = w // p
 
-    # Reshape into patches
-    x = x.reshape(bsz, c, h_patches, p, w_patches, p)
-    x = x.permute(0, 2, 4, 1, 3, 5)  # (bsz, h_patches, w_patches, c, p, p)
-    x = x.reshape(bsz, h_patches * w_patches, c * p * p)  # (bsz, num_patches, patch_embed_dim)
-    return x
+        # Reshape into patches
+        x = x.reshape(bsz, c, h_patches, p, w_patches, p)
+        x = x.permute(0, 2, 4, 1, 3, 5)  # (bsz, h_patches, w_patches, c, p, p)
+        x = x.reshape(bsz, h_patches * w_patches, c * p * p)  # (bsz, num_patches, patch_embed_dim)
+        return x
 
     def unpatchify(self, x):
         bsz = x.shape[0]
