@@ -1,17 +1,14 @@
 from functools import partial
-
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
+from torch.utils.checkpoint import checkpoint
+import math
 import numpy as np
 from tqdm import tqdm
 import scipy.stats as stats
-import math
-import torch
-import torch.nn as nn
-from torch.utils.checkpoint import checkpoint
-
 from timm.models.vision_transformer import Block
-
-from models.diffloss import DiffLoss
-
 
 def mask_by_order(mask_len, order, bsz, seq_len):
     masking = torch.zeros(bsz, seq_len).cuda()
@@ -138,14 +135,11 @@ class MAR(nn.Module):
         """
         bsz, c, h, w = x.shape
         p = self.patch_size
-        h_patches = h // p
-        w_patches = w // p
+        h_patches = h // (self.vae_stride * p)
+        w_patches = w // (self.vae_stride * p)
     
         # Reshape into patches
-        x = x.reshape(bsz, c, h_patches, p, w_patches, p)
-        x = x.permute(0, 2, 4, 1, 3, 5)  # (bsz, h_patches, w_patches, c, p, p)
-        x = x.reshape(bsz, h_patches * w_patches, c * p * p)  # (bsz, num_patches, patch_embed_dim)
-        return x
+        x = x.reshape(bsz, c, h_patches, self.vae_stride, w_patches, p)
 
     def unpatchify(self, x):
         """
@@ -187,22 +181,23 @@ class MAR(nn.Module):
         return mask
 
     def forward_mae_encoder(self, x, mask, class_embedding):
+        print(f"Shape of x before z_proj: {x.shape}")  # Debug shape
         x = self.z_proj(x)
         bsz, seq_len, embed_dim = x.shape
-
-        # concat buffer
+        print(f"Shape of x after z_proj: {x.shape}")  # Debug shape
+    
+        # Concat buffer
         x = torch.cat([torch.zeros(bsz, self.buffer_size, embed_dim, device=x.device), x], dim=1)
-        mask_with_buffer = torch.cat([torch.zeros(x.size(0), self.buffer_size, device=x.device), mask], dim=1)
-
-        # random drop class embedding during training
-        if self.training:
-            drop_latent_mask = torch.rand(bsz) < self.label_drop_prob
-            drop_latent_mask = drop_latent_mask.unsqueeze(-1).cuda().to(x.dtype)
-            class_embedding = drop_latent_mask * self.fake_latent + (1 - drop_latent_mask) * class_embedding
-
+        print(f"Shape of x after concat buffer: {x.shape}")  # Debug shape
+    
+        # Add class embedding
         x[:, :self.buffer_size] = class_embedding.unsqueeze(1)
-
-        # encoder position embedding
+        print(f"Shape of x after adding class embedding: {x.shape}")  # Debug shape
+    
+        # Encoder position embedding
+        print(f"Shape of encoder_pos_embed_learned: {self.encoder_pos_embed_learned.shape}")  # Debug shape
+        if x.shape[1] != self.encoder_pos_embed_learned.shape[1]:
+            raise ValueError(f"Shape mismatch: x has seq_len {x.shape[1]}, but encoder_pos_embed_learned has seq_len {self.encoder_pos_embed_learned.shape[1]}")
         x = x + self.encoder_pos_embed_learned
         x = self.z_proj_ln(x)
 
