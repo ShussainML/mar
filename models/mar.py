@@ -9,6 +9,8 @@ import numpy as np
 from tqdm import tqdm
 import scipy.stats as stats
 from timm.models.vision_transformer import Block
+# Import DiffLoss
+from models.diffloss import DiffLoss
 
 def mask_by_order(mask_len, order, bsz, seq_len):
     masking = torch.zeros(bsz, seq_len).cuda()
