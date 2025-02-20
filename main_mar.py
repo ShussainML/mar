@@ -94,7 +94,7 @@ def get_args_parser():
     parser.add_argument('--temperature', default=1.0, type=float, help='diffusion loss sampling temperature')
 
     # Dataset parameters
-    parser.add_argument('--data_path', default='./data/imagenet', type=str,
+    parser.add_argument('--data_path', default='/kaggle/working/data/imagenet', type=str,  # Updated data path
                         help='dataset path')
     parser.add_argument('--class_num', default=1000, type=int)
 
