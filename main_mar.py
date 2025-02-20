@@ -159,22 +159,28 @@ def main(args):
 
     # augmentation following DiT and ADM
     # Define transformations (if needed)
+    # Define transformations
     transform_train = transforms.Compose([
-        transforms.Resize((256, 256)),  # Example transformation
-        transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])  # Example normalization
+        transforms.Lambda(lambda pil_image: center_crop_arr(pil_image, args.img_size)),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
     ])
-
+    
+    # Use the custom dataset
     if args.use_cached:
         dataset_train = CachedFolder(args.cached_path)
     else:
         dataset_train = PTDataset(args.data_path, transform=transform_train)
+    
     print(dataset_train)
-
+    
+    # Create DataLoader
     sampler_train = torch.utils.data.DistributedSampler(
         dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
     )
     print("Sampler_train = %s" % str(sampler_train))
-
+    
     data_loader_train = torch.utils.data.DataLoader(
         dataset_train, sampler=sampler_train,
         batch_size=args.batch_size,
