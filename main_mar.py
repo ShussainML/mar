@@ -15,7 +15,7 @@ from util.crop import center_crop_arr
 import util.misc as misc
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from util.loader import CachedFolder
-
+from torch.utils.data import Dataset
 from models.vae import AutoencoderKL
 from models import mar
 from engine_mar import train_one_epoch, evaluate
