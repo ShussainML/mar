@@ -21,6 +21,41 @@ from models import mar
 from engine_mar import train_one_epoch, evaluate
 import copy
 
+class PTDataset(Dataset):
+    def __init__(self, root, transform=None):
+        self.root = root
+        self.transform = transform
+        self.classes, self.class_to_idx = self._find_classes(self.root)
+        self.samples = self._make_dataset(self.root, self.class_to_idx)
+
+    def _find_classes(self, dir):
+        classes = [d.name for d in os.scandir(dir) if d.is_dir()]
+        classes.sort()
+        class_to_idx = {cls_name: i for i, cls_name in enumerate(classes)}
+        return classes, class_to_idx
+
+    def _make_dataset(self, dir, class_to_idx):
+        images = []
+        for target_class in sorted(class_to_idx.keys()):
+            class_index = class_to_idx[target_class]
+            target_dir = os.path.join(dir, target_class)
+            for root, _, fnames in sorted(os.walk(target_dir)):
+                for fname in sorted(fnames):
+                    if fname.endswith('.pt'):
+                        path = os.path.join(root, fname)
+                        item = (path, class_index)
+                        images.append(item)
+        return images
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, index):
+        path, target = self.samples[index]
+        image = torch.load(path)  # Load .pt file
+        if self.transform is not None:
+            image = self.transform(image)
+        return image, target
 
 def get_args_parser():
     parser = argparse.ArgumentParser('MAR training with Diffusion Loss', add_help=False)
