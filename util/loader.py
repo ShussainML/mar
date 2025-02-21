@@ -16,6 +16,8 @@ class ImageFolderWithFilename(datasets.ImageFolder):
         """
         path, target = self.samples[index]
         sample = self.loader(path)
+        print(f"Loaded image: {path}, size: {sample.size}")  # Debug statement
+
         if self.transform is not None:
             sample = self.transform(sample)
         if self.target_transform is not None:
