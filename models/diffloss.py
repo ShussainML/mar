@@ -7,31 +7,38 @@ from diffusion import create_diffusion
 
 
 class DiffLoss(nn.Module):
-    """Diffusion Loss"""
-    def __init__(self, target_channels, z_channels, depth, width, num_sampling_steps, grad_checkpointing=False):
-        super(DiffLoss, self).__init__()
-        self.in_channels = target_channels
-        self.net = SimpleMLPAdaLN(
-            in_channels=target_channels,
-            model_channels=width,
-            out_channels=target_channels * 2,  # for vlb loss
-            z_channels=z_channels,
-            num_res_blocks=depth,
-            grad_checkpointing=grad_checkpointing
-        )
+    def __init__(self, target_channels, z_channels, depth, width, num_sampling_steps):
+        super().__init__()
+        self.target_channels = target_channels
+        self.z_channels = z_channels
+        self.depth = depth
+        self.width = width
+        self.num_sampling_steps = num_sampling_steps
 
-        self.train_diffusion = create_diffusion(timestep_respacing="", noise_schedule="cosine")
-        self.gen_diffusion = create_diffusion(timestep_respacing=num_sampling_steps, noise_schedule="cosine")
+        # Adjust input_proj to match the expected input dimensions
+        self.input_proj = nn.Linear(128, 1536)  # Adjust input and output dimensions as needed
+
+        # Define other layers here
+        self.time_embed = ...
+        self.cond_embed = ...
 
     def forward(self, target, z, mask=None):
+        # Debug: Print shapes of target and z
+        print(f"Target shape: {target.shape}")
+        print(f"z shape: {z.shape}")
+
+        # Ensure target and z have the correct shapes
+        target = target.view(target.size(0), -1)  # Flatten spatial dimensions
+        z = z.view(z.size(0), -1)  # Flatten spatial dimensions
+
+        # Compute the diffusion loss
         t = torch.randint(0, self.train_diffusion.num_timesteps, (target.shape[0],), device=target.device)
         model_kwargs = dict(c=z)
         loss_dict = self.train_diffusion.training_losses(self.net, target, t, model_kwargs)
         loss = loss_dict["loss"]
         if mask is not None:
             loss = (loss * mask).sum() / mask.sum()
-        return loss.mean()
-
+        return loss
     def sample(self, z, temperature=1.0, cfg=1.0):
         # diffusion loss sampling
         if not cfg == 1.0:
