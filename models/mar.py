@@ -98,8 +98,7 @@ class MAR(nn.Module):
             z_channels=decoder_embed_dim,
             width=diffloss_w,
             depth=diffloss_d,
-            num_sampling_steps=num_sampling_steps,
-            grad_checkpointing=grad_checkpointing
+            num_sampling_steps=num_sampling_steps  # Removed grad_checkpointing
         )
         self.diffusion_batch_mul = diffusion_batch_mul
 
