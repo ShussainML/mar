@@ -483,8 +483,21 @@ class AutoencoderKL(nn.Module):
         dec = self.decoder(z)
         return dec
 
-    def forward(self, inputs, disable=True, train=True, optimizer_idx=0):
-        if train:
-            return self.training_step(inputs, disable, optimizer_idx)
+    def forward(self, inputs):
+        """
+        Forward pass for the AutoencoderKL model.
+        Args:
+            inputs: Input tensor.
+        Returns:
+            Reconstructed output tensor.
+        """
+        # Encode the input
+        posterior = self.encode(inputs)
+        # Sample from the posterior (if using variational inference)
+        if self.use_variational:
+            z = posterior.sample()
         else:
-            return self.validation_step(inputs, disable)
+            z = posterior.mode()
+        # Decode the latent representation
+        outputs = self.decode(z)
+        return outputs
