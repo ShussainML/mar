@@ -23,9 +23,9 @@ class DiffLoss(nn.Module):
         self.net = SimpleMLPAdaLN(
             in_channels=target_channels,
             model_channels=width,
-            out_channels=32,  # Set out_channels to 32 to match checkpoint
-            z_channels=z_channels,
-            num_res_blocks=depth
+            z_channels=z_channels,  # Non-default argument
+            num_res_blocks=depth,  # Non-default argument
+            out_channels=32  # Default argument
         )
 
     def forward(self, target, z, mask=None):
@@ -167,26 +167,28 @@ class SimpleMLPAdaLN(nn.Module):
     The MLP for Diffusion Loss.
     :param in_channels: channels in the input Tensor.
     :param model_channels: base channel count for the model.
-    :param out_channels: channels in the output Tensor.
     :param z_channels: channels in the condition.
     :param num_res_blocks: number of residual blocks per downsample.
+    :param out_channels: channels in the output Tensor (default: 32).
+    :param grad_checkpointing: whether to use gradient checkpointing (default: False).
     """
 
     def __init__(
         self,
         in_channels,
         model_channels,
-        out_channels=32,  # Set out_channels to 32
-        z_channels,
-        num_res_blocks,
-        grad_checkpointing=False
+        z_channels,  # Non-default argument
+        num_res_blocks,  # Non-default argument
+        out_channels=32,  # Default argument
+        grad_checkpointing=False  # Default argument
     ):
         super().__init__()
 
         self.in_channels = in_channels
         self.model_channels = model_channels
-        self.out_channels = out_channels  # out_channels is 32
+        self.z_channels = z_channels
         self.num_res_blocks = num_res_blocks
+        self.out_channels = out_channels  # out_channels is 32
         self.grad_checkpointing = grad_checkpointing
 
         self.time_embed = TimestepEmbedder(model_channels)
