@@ -21,11 +21,11 @@ class DiffLoss(nn.Module):
 
         # Define the network for diffusion
         self.net = SimpleMLPAdaLN(
-            in_channels=target_channels,  # Input channels (e.g., 3 for RGB images)
-            model_channels=width,         # Model width (e.g., 1536)
-            z_channels=z_channels,        # Latent channels (e.g., 16)
-            num_res_blocks=depth,         # Number of residual blocks (e.g., 12)
-            out_channels=32               # Output channels (default: 32)
+            in_channels=49152,  # Set in_channels to 49152 (flattened input size)
+            model_channels=width,
+            z_channels=z_channels,  # Non-default argument
+            num_res_blocks=depth,  # Non-default argument
+            out_channels=32  # Default argument
         )
 
     def forward(self, target, z, mask=None):
@@ -169,10 +169,10 @@ class SimpleMLPAdaLN(nn.Module):
     """
     def __init__(
         self,
-        in_channels,
-        model_channels,
-        z_channels,
-        num_res_blocks,
+        in_channels=49152,  # Set in_channels to 49152 (flattened input size)
+        model_channels=1536,
+        z_channels=16,
+        num_res_blocks=12,
         out_channels=32,  # Default argument
         grad_checkpointing=False  # Default argument
     ):
