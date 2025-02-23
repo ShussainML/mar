@@ -127,23 +127,23 @@ class MAR(nn.Module):
                 nn.init.constant_(m.weight, 1.0)
 
     def patchify(self, x):
-    """
-    Convert images into patches.
-    Args:
-        x: Input tensor of shape (batch_size, channels, height, width).
-    Returns:
-        Tensor of shape (batch_size, num_patches, patch_embed_dim).
-    """
-    bsz, c, h, w = x.shape
-    p = self.patch_size
-    h_patches = h // (self.vae_stride * p)
-    w_patches = w // (self.vae_stride * p)
-    
-    # Reshape into patches
-    x = x.reshape(bsz, c, h_patches, self.vae_stride, w_patches, p)
-    x = x.permute(0, 2, 4, 1, 3, 5)  # Reorder dimensions to [bsz, h_patches, w_patches, c, vae_stride, p]
-    x = x.reshape(bsz, h_patches * w_patches, -1)  # Flatten patches into [bsz, num_patches, patch_embed_dim]
-    return x
+        """
+        Convert images into patches.
+        Args:
+            x: Input tensor of shape (batch_size, channels, height, width).
+        Returns:
+            Tensor of shape (batch_size, num_patches, patch_embed_dim).
+        """
+        bsz, c, h, w = x.shape
+        p = self.patch_size
+        h_patches = h // (self.vae_stride * p)
+        w_patches = w // (self.vae_stride * p)
+        
+        # Reshape into patches
+        x = x.reshape(bsz, c, h_patches, self.vae_stride, w_patches, p)
+        x = x.permute(0, 2, 4, 1, 3, 5)  # Reorder dimensions to [bsz, h_patches, w_patches, c, vae_stride, p]
+        x = x.reshape(bsz, h_patches * w_patches, -1)  # Flatten patches into [bsz, num_patches, patch_embed_dim]
+        return x
 
     def unpatchify(self, x):
         """
