@@ -23,7 +23,7 @@ class DiffLoss(nn.Module):
         self.net = SimpleMLPAdaLN(
             in_channels=target_channels,
             model_channels=width,
-            out_channels=target_channels,
+            out_channels=32,  # Set out_channels to 32 to match checkpoint
             z_channels=z_channels,
             num_res_blocks=depth
         )
@@ -146,10 +146,10 @@ class FinalLayer(nn.Module):
     """
     The final layer adopted from DiT.
     """
-    def __init__(self, model_channels, out_channels):
+    def __init__(self, model_channels, out_channels=32):  # Set out_channels to 32
         super().__init__()
         self.norm_final = nn.LayerNorm(model_channels, elementwise_affine=False, eps=1e-6)
-        self.linear = nn.Linear(model_channels, out_channels, bias=True)
+        self.linear = nn.Linear(model_channels, out_channels, bias=True)  # out_channels is 32
         self.adaLN_modulation = nn.Sequential(
             nn.SiLU(),
             nn.Linear(model_channels, 2 * model_channels, bias=True)
@@ -176,7 +176,7 @@ class SimpleMLPAdaLN(nn.Module):
         self,
         in_channels,
         model_channels,
-        out_channels,
+        out_channels=32,  # Set out_channels to 32
         z_channels,
         num_res_blocks,
         grad_checkpointing=False
@@ -185,7 +185,7 @@ class SimpleMLPAdaLN(nn.Module):
 
         self.in_channels = in_channels
         self.model_channels = model_channels
-        self.out_channels = out_channels
+        self.out_channels = out_channels  # out_channels is 32
         self.num_res_blocks = num_res_blocks
         self.grad_checkpointing = grad_checkpointing
 
@@ -201,7 +201,7 @@ class SimpleMLPAdaLN(nn.Module):
             ))
 
         self.res_blocks = nn.ModuleList(res_blocks)
-        self.final_layer = FinalLayer(model_channels, out_channels)
+        self.final_layer = FinalLayer(model_channels, out_channels)  # out_channels is 32
 
         self.initialize_weights()
 
