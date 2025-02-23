@@ -144,7 +144,6 @@ class MAR(nn.Module):
         x = x.permute(0, 2, 4, 1, 3, 5)  # Reorder dimensions to [bsz, h_patches, w_patches, c, vae_stride, p]
         x = x.reshape(bsz, h_patches * w_patches, -1)  # Flatten patches into [bsz, num_patches, patch_embed_dim]
         return x
-
     def unpatchify(self, x):
         """
         Convert patches back into images.
