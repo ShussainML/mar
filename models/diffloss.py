@@ -158,36 +158,27 @@ class FinalLayer(nn.Module):
 
 
 class SimpleMLPAdaLN(nn.Module):
-    """
-    The MLP for Diffusion Loss.
-    :param in_channels: channels in the input Tensor.
-    :param model_channels: base channel count for the model.
-    :param z_channels: channels in the condition.
-    :param num_res_blocks: number of residual blocks per downsample.
-    :param out_channels: channels in the output Tensor (default: 32).
-    :param grad_checkpointing: whether to use gradient checkpointing (default: False).
-    """
     def __init__(
         self,
         in_channels=49152,  # Set in_channels to 49152 (flattened input size)
         model_channels=1536,
         z_channels=16,
         num_res_blocks=12,
-        out_channels=32,  # Default argument
-        grad_checkpointing=False  # Default argument
+        out_channels=32,
+        grad_checkpointing=False
     ):
         super().__init__()
-
         self.in_channels = in_channels
         self.model_channels = model_channels
         self.z_channels = z_channels
         self.num_res_blocks = num_res_blocks
-        self.out_channels = out_channels  # out_channels is 32
+        self.out_channels = out_channels
         self.grad_checkpointing = grad_checkpointing
 
         self.time_embed = TimestepEmbedder(model_channels)
         self.cond_embed = nn.Linear(z_channels, model_channels)
 
+        # Project input to model_channels
         self.input_proj = nn.Linear(in_channels, model_channels)
 
         res_blocks = []
@@ -195,7 +186,7 @@ class SimpleMLPAdaLN(nn.Module):
             res_blocks.append(ResBlock(model_channels))
 
         self.res_blocks = nn.ModuleList(res_blocks)
-        self.final_layer = FinalLayer(model_channels, out_channels)  # out_channels is 32
+        self.final_layer = FinalLayer(model_channels, out_channels)
 
         self.initialize_weights()
 
