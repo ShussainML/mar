@@ -160,7 +160,7 @@ class FinalLayer(nn.Module):
 class SimpleMLPAdaLN(nn.Module):
     def __init__(
         self,
-        in_channels=49152,  # Set in_channels to 49152 (flattened input size)
+        in_channels=16,  # Change in_channels to 16 to match the checkpoint
         model_channels=1536,
         z_channels=16,
         num_res_blocks=12,
@@ -179,7 +179,7 @@ class SimpleMLPAdaLN(nn.Module):
         self.cond_embed = nn.Linear(z_channels, model_channels)
 
         # Project input to model_channels
-        self.input_proj = nn.Linear(in_channels, model_channels)
+        self.input_proj = nn.Linear(in_channels, model_channels)  # in_channels is now 16
 
         res_blocks = []
         for i in range(num_res_blocks):
