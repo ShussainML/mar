@@ -21,11 +21,11 @@ class DiffLoss(nn.Module):
 
         # Define the network for diffusion
         self.net = SimpleMLPAdaLN(
-            in_channels=target_channels,
-            model_channels=width,
-            z_channels=z_channels,  # Non-default argument
-            num_res_blocks=depth,  # Non-default argument
-            out_channels=32  # Default argument
+            in_channels=target_channels,  # Input channels (e.g., 3 for RGB images)
+            model_channels=width,         # Model width (e.g., 1536)
+            z_channels=z_channels,        # Latent channels (e.g., 16)
+            num_res_blocks=depth,         # Number of residual blocks (e.g., 12)
+            out_channels=32               # Output channels (default: 32)
         )
 
     def forward(self, target, z, mask=None):
@@ -34,8 +34,8 @@ class DiffLoss(nn.Module):
         print(f"z shape: {z.shape}")
 
         # Ensure target and z have the correct shapes
-        target = target.view(target.size(0), -1)  # Flatten spatial dimensions
-        z = z.view(z.size(0), -1)  # Flatten spatial dimensions
+        target = target.view(target.size(0), -1)  # Flatten to [batch_size, target_channels * H * W]
+        z = z.view(z.size(0), -1)                # Flatten to [batch_size, z_channels * H * W]
 
         # Compute the diffusion loss
         t = torch.randint(0, self.train_diffusion.num_timesteps, (target.shape[0],), device=target.device)
@@ -47,7 +47,7 @@ class DiffLoss(nn.Module):
         return loss
 
     def sample(self, z, temperature=1.0, cfg=1.0):
-        # diffusion loss sampling
+        # Diffusion loss sampling
         if not cfg == 1.0:
             noise = torch.randn(z.shape[0] // 2, self.target_channels).cuda()
             noise = torch.cat([noise, noise], dim=0)
@@ -93,7 +93,6 @@ class TimestepEmbedder(nn.Module):
         :param max_period: controls the minimum frequency of the embeddings.
         :return: an (N, D) Tensor of positional embeddings.
         """
-        # https://github.com/openai/glide-text2im/blob/main/glide_text2im/nn.py
         half = dim // 2
         freqs = torch.exp(
             -math.log(max_period) * torch.arange(start=0, end=half, dtype=torch.float32) / half
@@ -115,11 +114,7 @@ class ResBlock(nn.Module):
     A residual block that can optionally change the number of channels.
     :param channels: the number of input channels.
     """
-
-    def __init__(
-        self,
-        channels
-    ):
+    def __init__(self, channels):
         super().__init__()
         self.channels = channels
 
@@ -172,13 +167,12 @@ class SimpleMLPAdaLN(nn.Module):
     :param out_channels: channels in the output Tensor (default: 32).
     :param grad_checkpointing: whether to use gradient checkpointing (default: False).
     """
-
     def __init__(
         self,
         in_channels,
         model_channels,
-        z_channels,  # Non-default argument
-        num_res_blocks,  # Non-default argument
+        z_channels,
+        num_res_blocks,
         out_channels=32,  # Default argument
         grad_checkpointing=False  # Default argument
     ):
@@ -198,9 +192,7 @@ class SimpleMLPAdaLN(nn.Module):
 
         res_blocks = []
         for i in range(num_res_blocks):
-            res_blocks.append(ResBlock(
-                model_channels,
-            ))
+            res_blocks.append(ResBlock(model_channels))
 
         self.res_blocks = nn.ModuleList(res_blocks)
         self.final_layer = FinalLayer(model_channels, out_channels)  # out_channels is 32
