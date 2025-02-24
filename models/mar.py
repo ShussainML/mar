@@ -136,20 +136,39 @@ class MAR(nn.Module):
         """
         bsz, c, h, w = x.shape
         p = self.patch_size
+        s = self.vae_stride  # Using a variable for clarity
     
-        # Ensure h and w are divisible by vae_stride * p
-        assert h % (self.vae_stride * p) == 0, f"Height {h} is not divisible by {self.vae_stride * p}"
-        assert w % (self.vae_stride * p) == 0, f"Width {w} is not divisible by {self.vae_stride * p}"
+        print(f"Input Tensor Shape: {x.shape}")  # Debugging step 1
     
-        h_patches = h // (self.vae_stride * p)
-        w_patches = w // (self.vae_stride * p)
+        # Compute patches
+        h_patches = h // (s * p)
+        w_patches = w // (s * p)
     
-        # Corrected reshaping to ensure valid dimensions
-        x = x.view(bsz, c, h_patches, self.vae_stride, w_patches, p)
-        x = x.permute(0, 2, 4, 1, 3, 5).contiguous()  # Ensuring memory alignment
-        x = x.view(bsz, h_patches * w_patches, -1)  # Flatten patches
+        print(f"Computed Patches - h_patches: {h_patches}, w_patches: {w_patches}")  # Debugging step 2
     
+        # Expected total elements check
+        expected_elements = bsz * c * h_patches * s * w_patches * p
+        actual_elements = x.numel()
+    
+        print(f"Expected Elements: {expected_elements}, Actual Elements: {actual_elements}")  # Debugging step 3
+    
+        assert expected_elements == actual_elements, \
+            f"Mismatch! Expected {expected_elements}, but got {actual_elements}. Check stride & patch size."
+    
+        # Reshape into patches
+        try:
+            x = x.reshape(bsz, c, h_patches, s, w_patches, p)
+        except RuntimeError as e:
+            print(f"Reshape Error: {e}")
+            print(f"Check if h_patches={h_patches} or w_patches={w_patches} is zero.")
+            raise
+    
+        x = x.permute(0, 2, 4, 1, 3, 5)  # Reorder dimensions to [bsz, h_patches, w_patches, c, vae_stride, p]
+        x = x.reshape(bsz, h_patches * w_patches, -1)  # Flatten patches into [bsz, num_patches, patch_embed_dim]
+        
+        print(f"Output Tensor Shape: {x.shape}")  # Debugging step 4
         return x
+
 
     def unpatchify(self, x):
         """
