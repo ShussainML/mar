@@ -135,38 +135,44 @@ class MAR(nn.Module):
             Tensor of shape (batch_size, num_patches, patch_embed_dim).
         """
         bsz, c, h, w = x.shape
-        p = self.patch_size
-        s = self.vae_stride  # Using a variable for clarity
+        p = self.patch_size  # Patch size
+        s = self.vae_stride  # Stride
     
-        print(f"Input Tensor Shape: {x.shape}")  # Debugging step 1
+        print(f"Input Tensor Shape: {x.shape}")
     
-        # Compute patches
+        # Compute number of patches
         h_patches = h // (s * p)
         w_patches = w // (s * p)
     
-        print(f"Computed Patches - h_patches: {h_patches}, w_patches: {w_patches}")  # Debugging step 2
+        print(f"Computed Patches: h_patches={h_patches}, w_patches={w_patches}")
     
-        # Expected total elements check
-        expected_elements = bsz * c * h_patches * s * w_patches * p
+        # Corrected expected element calculation
+        expected_elements = bsz * c * h * w  # Actual total elements in input
         actual_elements = x.numel()
     
-        print(f"Expected Elements: {expected_elements}, Actual Elements: {actual_elements}")  # Debugging step 3
+        print(f"Expected Elements (Original Tensor): {expected_elements}, Actual Elements: {actual_elements}")
     
+        # Ensure h_patches and w_patches are valid
+        assert h_patches > 0 and w_patches > 0, \
+            f"Invalid patch sizes! h_patches={h_patches}, w_patches={w_patches}. Adjust stride/patch size."
+    
+        # Check if total elements match
         assert expected_elements == actual_elements, \
             f"Mismatch! Expected {expected_elements}, but got {actual_elements}. Check stride & patch size."
     
-        # Reshape into patches
         try:
-            x = x.reshape(bsz, c, h_patches, s, w_patches, p)
+            # New reshaping formula
+            x = x.unfold(2, p, s).unfold(3, p, s)  # Extract patches
+            print(f"Unfolded Shape: {x.shape}")  # Should match (bsz, c, h_patches, w_patches, p, p)
+    
+            x = x.permute(0, 2, 3, 1, 4, 5).contiguous()  # Reorder dimensions
+            x = x.view(bsz, h_patches * w_patches, -1)  # Flatten patches
+    
         except RuntimeError as e:
             print(f"Reshape Error: {e}")
-            print(f"Check if h_patches={h_patches} or w_patches={w_patches} is zero.")
             raise
     
-        x = x.permute(0, 2, 4, 1, 3, 5)  # Reorder dimensions to [bsz, h_patches, w_patches, c, vae_stride, p]
-        x = x.reshape(bsz, h_patches * w_patches, -1)  # Flatten patches into [bsz, num_patches, patch_embed_dim]
-        
-        print(f"Output Tensor Shape: {x.shape}")  # Debugging step 4
+        print(f"Output Tensor Shape: {x.shape}")
         return x
 
 
