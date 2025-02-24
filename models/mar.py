@@ -136,14 +136,21 @@ class MAR(nn.Module):
         """
         bsz, c, h, w = x.shape
         p = self.patch_size
+    
+        # Ensure h and w are divisible by vae_stride * p
+        assert h % (self.vae_stride * p) == 0, f"Height {h} is not divisible by {self.vae_stride * p}"
+        assert w % (self.vae_stride * p) == 0, f"Width {w} is not divisible by {self.vae_stride * p}"
+    
         h_patches = h // (self.vae_stride * p)
         w_patches = w // (self.vae_stride * p)
-        
-        # Reshape into patches
-        x = x.reshape(bsz, c, h_patches, self.vae_stride, w_patches, p)
-        x = x.permute(0, 2, 4, 1, 3, 5)  # Reorder dimensions to [bsz, h_patches, w_patches, c, vae_stride, p]
-        x = x.reshape(bsz, h_patches * w_patches, -1)  # Flatten patches into [bsz, num_patches, patch_embed_dim]
+    
+        # Corrected reshaping to ensure valid dimensions
+        x = x.view(bsz, c, h_patches, self.vae_stride, w_patches, p)
+        x = x.permute(0, 2, 4, 1, 3, 5).contiguous()  # Ensuring memory alignment
+        x = x.view(bsz, h_patches * w_patches, -1)  # Flatten patches
+    
         return x
+
     def unpatchify(self, x):
         """
         Convert patches back into images.
