@@ -146,19 +146,9 @@ class MAR(nn.Module):
     
         print(f"Computed Patches: h_patches={h_patches}, w_patches={w_patches}")
     
-        # Corrected expected element calculation
-        expected_elements = bsz * c * h * w  # Actual total elements in input
-        actual_elements = x.numel()
-    
-        print(f"Expected Elements (Original Tensor): {expected_elements}, Actual Elements: {actual_elements}")
-    
         # Ensure h_patches and w_patches are valid
         assert h_patches > 0 and w_patches > 0, \
             f"Invalid patch sizes! h_patches={h_patches}, w_patches={w_patches}. Adjust stride/patch size."
-    
-        # Check if total elements match
-        assert expected_elements == actual_elements, \
-            f"Mismatch! Expected {expected_elements}, but got {actual_elements}. Check stride & patch size."
     
         try:
             # New reshaping formula
@@ -285,25 +275,32 @@ class MAR(nn.Module):
         return loss
 
     def forward(self, imgs, labels):
-
+        # Debug input shapes
+        print(f"Input imgs shape: {imgs.shape}")
+        print(f"Input labels shape: {labels.shape}")
+    
         # class embed
         class_embedding = self.class_emb(labels)
-
+        print(f"Class embedding shape: {class_embedding.shape}")
+    
         # patchify and mask (drop) tokens
         x = self.patchify(imgs)
+        print(f"Shape of x after patchify: {x.shape}")
+        
         gt_latents = x.clone().detach()
         orders = self.sample_orders(bsz=x.size(0))
         mask = self.random_masking(x, orders)
-
+        print(f"Shape of mask: {mask.shape}")
+    
         # mae encoder
         x = self.forward_mae_encoder(x, mask, class_embedding)
-
+    
         # mae decoder
         z = self.forward_mae_decoder(x, mask)
-
+    
         # diffloss
         loss = self.forward_loss(z=z, target=gt_latents, mask=mask)
-
+    
         return loss
 
     def sample_tokens(self, bsz, num_iter=64, cfg=1.0, cfg_schedule="linear", labels=None, temperature=1.0, progress=False):
