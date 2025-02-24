@@ -37,6 +37,13 @@ class MAR(nn.Module):
                  grad_checkpointing=False,
                  device=None):
         super().__init__()
+        # Add a projection layer to map 3 channels -> vae_embed_dim
+        self.patch_proj = nn.Conv2d(
+            in_channels=3,  # Assuming input images have 3 channels
+            out_channels=vae_embed_dim,
+            kernel_size=1,  # 1x1 convolution to project channels
+            stride=vae_stride  # Match the VAE stride to maintain spatial dimensions
+        )
         self.num_classes = class_num
         self.class_emb = nn.Embedding(class_num, encoder_embed_dim)
         # Rest of the initialization...
@@ -128,41 +135,60 @@ class MAR(nn.Module):
 
     def patchify(self, x):
         """
-        Convert images into patches.
-        Args:
-            x: Input tensor of shape (batch_size, channels, height, width).
+        Convert images into patches and project to vae_embed_dim.
         Returns:
-            Tensor of shape (batch_size, num_patches, patch_embed_dim).
+            Tensor of shape (batch_size, num_patches, token_embed_dim)
         """
+        # Debug 1: Initial input shape
+        print(f"\n[Debug] Initial input shape: {x.shape} (bsz, channels, height, width)")
+        
+        # Step 1: Project channels using Conv2d
+        print(f"[Debug] patch_proj layer parameters:")
+        print(f"  - in_channels: {self.patch_proj.in_channels}")
+        print(f"  - out_channels: {self.patch_proj.out_channels}")
+        print(f"  - kernel_size: {self.patch_proj.kernel_size}")
+        print(f"  - stride: {self.patch_proj.stride}")
+        
+        x = self.patch_proj(x)
+        print(f"[Debug] Shape after patch_proj: {x.shape} (bsz, vae_embed_dim, h_proj, w_proj)")
+    
+        # Step 2: Unfold into patches
         bsz, c, h, w = x.shape
-        p = self.patch_size  # Patch size
-        s = self.vae_stride  # Stride
+        p = self.patch_size
+        s = self.vae_stride
     
-        print(f"Input Tensor Shape: {x.shape}")
+        # Debug 2: Before unfolding
+        print(f"\n[Debug] Before unfolding:")
+        print(f"  - Patch size: {p}")
+        print(f"  - Stride: {s}")
+        print(f"  - Input height: {h}, width: {w}")
     
-        # Compute number of patches
-        h_patches = h // (s * p)
-        w_patches = w // (s * p)
+        # First unfold (height dimension)
+        x = x.unfold(2, p, s)
+        print(f"[Debug] After height unfolding: {x.shape} (bsz, c, h_patches, w, p)")
     
-        print(f"Computed Patches: h_patches={h_patches}, w_patches={w_patches}")
+        # Second unfold (width dimension)
+        x = x.unfold(3, p, s)
+        print(f"[Debug] After width unfolding: {x.shape} (bsz, c, h_patches, w_patches, p, p)")
     
-        # Ensure h_patches and w_patches are valid
-        assert h_patches > 0 and w_patches > 0, \
-            f"Invalid patch sizes! h_patches={h_patches}, w_patches={w_patches}. Adjust stride/patch size."
+        # Permute and reshape
+        x = x.permute(0, 2, 3, 1, 4, 5).contiguous()
+        print(f"[Debug] After permute: {x.shape} (bsz, h_patches, w_patches, c, p, p)")
     
-        try:
-            # New reshaping formula
-            x = x.unfold(2, p, s).unfold(3, p, s)  # Extract patches
-            print(f"Unfolded Shape: {x.shape}")  # Should match (bsz, c, h_patches, w_patches, p, p)
-    
-            x = x.permute(0, 2, 3, 1, 4, 5).contiguous()  # Reorder dimensions
-            x = x.view(bsz, h_patches * w_patches, -1)  # Flatten patches
-    
-        except RuntimeError as e:
-            print(f"Reshape Error: {e}")
-            raise
-    
-        print(f"Output Tensor Shape: {x.shape}")
+        # Final reshape
+        original_elements = x.numel()
+        x = x.view(bsz, -1, self.token_embed_dim)
+        new_elements = x.numel()
+        
+        # Debug 3: After final reshape
+        print(f"\n[Debug] After final reshape:")
+        print(f"  - Expected token_embed_dim: {self.token_embed_dim} (vae_embed_dim * p^2 = {self.vae_embed_dim}*{p**2})")
+        print(f"  - Actual last dimension: {x.shape[-1]}")
+        print(f"  - Element count check: {original_elements} -> {new_elements} "
+              f"({'OK' if original_elements == new_elements else 'MISMATCH'})")
+        
+        print(f"\n[Debug] Final patchified shape: {x.shape} (bsz, num_patches, token_embed_dim)")
+        
         return x
 
 
