@@ -199,6 +199,101 @@ class MAR(nn.Module):
         tokens = self.unpatchify(tokens)
         return tokens
 
+    def unpatchify(self, x):
+        """Convert patches back into images."""
+        bsz = x.shape[0]
+        p = self.patch_size
+        c = self.vae_embed_dim
+        h_patches = int(np.sqrt(x.shape[1]))
+        w_patches = h_patches
+        x = x.reshape(bsz, h_patches, w_patches, c, p, p)
+        x = torch.einsum('nhwcpq->nchpwq', x)
+        x = x.reshape(bsz, c, h_patches * p, w_patches * p)
+        debug_print(x, "Unpatchified output")
+        return x
+
+
+
+def patchify(self, x):
+        """Convert images into patches and project to vae_embed_dim."""
+        debug_print(x, "Input to patchify")
+        x = self.patch_proj(x)
+        debug_print(x, "After patch_proj")
+        bsz, c, h, w = x.shape
+        p = self.patch_size
+        s = self.vae_stride
+        x = x.unfold(2, p, s).unfold(3, p, s)
+        x = x.permute(0, 2, 3, 1, 4, 5).contiguous()
+        x = x.view(bsz, -1, self.token_embed_dim)
+        debug_print(x, "Final patchified output")
+        return x
+
+
+def random_masking(self, x, orders):
+        """Generate token mask based on random orders."""
+        bsz, seq_len, embed_dim = x.shape
+        mask_rate = self.mask_ratio_generator.rvs(1)[0]
+        num_masked_tokens = int(np.ceil(seq_len * mask_rate))
+        mask = torch.zeros(bsz, seq_len, device=x.device)
+        mask = torch.scatter(mask, dim=-1, index=orders[:, :num_masked_tokens],
+                             src=torch.ones(bsz, seq_len, device=x.device))
+        debug_print(mask, "Random mask")
+        return mask
+
+
+def forward_mae_encoder(self, x, mask, class_embedding):
+        """Forward pass through the MAE encoder."""
+        debug_print(x, "Input to encoder")
+        x = self.z_proj(x)
+        debug_print(x, "After z_proj")
+        bsz, seq_len, embed_dim = x.shape
+        x = torch.cat([torch.zeros(bsz, self.buffer_size, embed_dim, device=x.device), x], dim=1)
+        x[:, :self.buffer_size] = class_embedding.unsqueeze(1)
+        x = x + self.encoder_pos_embed_learned
+        x = self.z_proj_ln(x)
+        debug_print(x, "After position embedding and layer norm")
+
+        # Apply Transformer blocks
+        for block in self.encoder_blocks:
+            x = checkpoint(block, x) if self.grad_checkpointing else block(x)
+        x = self.encoder_norm(x)
+        debug_print(x, "Encoder output")
+        return x
+
+
+def forward_mae_decoder(self, x, mask):
+        """Forward pass through the MAE decoder."""
+        debug_print(x, "Input to decoder")
+        x = self.decoder_embed(x)
+        debug_print(x, "After decoder_embed")
+        mask_with_buffer = torch.cat([torch.zeros(x.size(0), self.buffer_size, device=x.device), mask], dim=1)
+        mask_tokens = self.mask_token.repeat(mask_with_buffer.shape[0], mask_with_buffer.shape[1], 1).to(x.dtype)
+        x_after_pad = mask_tokens.clone()
+        x_after_pad[(1 - mask_with_buffer).nonzero(as_tuple=True)] = x.reshape(x.shape[0] * x.shape[1], x.shape[2])
+        x = x_after_pad + self.decoder_pos_embed_learned
+        debug_print(x, "After position embedding")
+
+        # Apply Transformer blocks
+        for block in self.decoder_blocks:
+            x = checkpoint(block, x) if self.grad_checkpointing else block(x)
+        x = self.decoder_norm(x)
+        x = x[:, self.buffer_size:]
+        x = x + self.diffusion_pos_embed_learned
+        debug_print(x, "Decoder output")
+        return x
+def forward_loss(self, z, target, mask):
+        """Compute the diffusion loss."""
+        debug_print(z, "Input z to forward_loss")
+        debug_print(target, "Input target to forward_loss")
+        debug_print(mask, "Input mask to forward_loss")
+        bsz, seq_len, _ = target.shape
+        target = target.reshape(bsz * seq_len, -1).repeat(self.diffusion_batch_mul, 1)
+        z = z.reshape(bsz * seq_len, -1).repeat(self.diffusion_batch_mul, 1)
+        mask = mask.reshape(bsz * seq_len).repeat(self.diffusion_batch_mul)
+        loss = self.diffloss(z=z, target=target, mask=mask)
+        debug_print(loss, "Loss output", shape_only=True)
+        return loss
+
 
 # Model variants
 def mar_base(**kwargs):
