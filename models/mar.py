@@ -19,8 +19,10 @@ def debug_print(tensor, name, shape_only=False):
     if not shape_only:
         print(f"  - Dtype: {tensor.dtype}")
         print(f"  - Device: {tensor.device}")
-        print(f"  - Values (min/max/mean): {tensor.min().item():.4f}, {tensor.max().item():.4f}, {tensor.mean().item():.4f}")
-
+        if tensor.dtype in [torch.float16, torch.float32, torch.float64, torch.complex64, torch.complex128]:
+            print(f"  - Values (min/max/mean): {tensor.min().item():.4f}, {tensor.max().item():.4f}, {tensor.mean().item():.4f}")
+        else:
+            print(f"  - Values (min/max): {tensor.min().item()}, {tensor.max().item()}")
 
 def mask_by_order(mask_len, order, bsz, seq_len):
     """Create a mask based on the generation order."""
