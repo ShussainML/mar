@@ -255,7 +255,7 @@ class MAR(nn.Module):
             mask, 
             dim=-1, 
             index=orders[:, :num_masked_tokens], 
-            src=torch.ones(bsz, seq_len, device=x.device)
+            src=torch.ones(bsz, num_masked_tokens, device=x.device)
         )
     
         # Debugging: Print final mask
