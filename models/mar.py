@@ -214,51 +214,51 @@ class MAR(nn.Module):
 
 
 
-def patchify(self, x):
-        """Convert images into patches and project to vae_embed_dim."""
-        debug_print(x, "Input to patchify")
-        x = self.patch_proj(x)
-        debug_print(x, "After patch_proj")
-        bsz, c, h, w = x.shape
-        p = self.patch_size
-        s = self.vae_stride
-        x = x.unfold(2, p, s).unfold(3, p, s)
-        x = x.permute(0, 2, 3, 1, 4, 5).contiguous()
-        x = x.view(bsz, -1, self.token_embed_dim)
-        debug_print(x, "Final patchified output")
-        return x
+    def patchify(self, x):
+            """Convert images into patches and project to vae_embed_dim."""
+            debug_print(x, "Input to patchify")
+            x = self.patch_proj(x)
+            debug_print(x, "After patch_proj")
+            bsz, c, h, w = x.shape
+            p = self.patch_size
+            s = self.vae_stride
+            x = x.unfold(2, p, s).unfold(3, p, s)
+            x = x.permute(0, 2, 3, 1, 4, 5).contiguous()
+            x = x.view(bsz, -1, self.token_embed_dim)
+            debug_print(x, "Final patchified output")
+            return x
+    
+    
+    def random_masking(self, x, orders):
+            """Generate token mask based on random orders."""
+            bsz, seq_len, embed_dim = x.shape
+            mask_rate = self.mask_ratio_generator.rvs(1)[0]
+            num_masked_tokens = int(np.ceil(seq_len * mask_rate))
+            mask = torch.zeros(bsz, seq_len, device=x.device)
+            mask = torch.scatter(mask, dim=-1, index=orders[:, :num_masked_tokens],
+                                 src=torch.ones(bsz, seq_len, device=x.device))
+            debug_print(mask, "Random mask")
+            return mask
 
 
-def random_masking(self, x, orders):
-        """Generate token mask based on random orders."""
-        bsz, seq_len, embed_dim = x.shape
-        mask_rate = self.mask_ratio_generator.rvs(1)[0]
-        num_masked_tokens = int(np.ceil(seq_len * mask_rate))
-        mask = torch.zeros(bsz, seq_len, device=x.device)
-        mask = torch.scatter(mask, dim=-1, index=orders[:, :num_masked_tokens],
-                             src=torch.ones(bsz, seq_len, device=x.device))
-        debug_print(mask, "Random mask")
-        return mask
-
-
-def forward_mae_encoder(self, x, mask, class_embedding):
-        """Forward pass through the MAE encoder."""
-        debug_print(x, "Input to encoder")
-        x = self.z_proj(x)
-        debug_print(x, "After z_proj")
-        bsz, seq_len, embed_dim = x.shape
-        x = torch.cat([torch.zeros(bsz, self.buffer_size, embed_dim, device=x.device), x], dim=1)
-        x[:, :self.buffer_size] = class_embedding.unsqueeze(1)
-        x = x + self.encoder_pos_embed_learned
-        x = self.z_proj_ln(x)
-        debug_print(x, "After position embedding and layer norm")
-
-        # Apply Transformer blocks
-        for block in self.encoder_blocks:
-            x = checkpoint(block, x) if self.grad_checkpointing else block(x)
-        x = self.encoder_norm(x)
-        debug_print(x, "Encoder output")
-        return x
+    def forward_mae_encoder(self, x, mask, class_embedding):
+            """Forward pass through the MAE encoder."""
+            debug_print(x, "Input to encoder")
+            x = self.z_proj(x)
+            debug_print(x, "After z_proj")
+            bsz, seq_len, embed_dim = x.shape
+            x = torch.cat([torch.zeros(bsz, self.buffer_size, embed_dim, device=x.device), x], dim=1)
+            x[:, :self.buffer_size] = class_embedding.unsqueeze(1)
+            x = x + self.encoder_pos_embed_learned
+            x = self.z_proj_ln(x)
+            debug_print(x, "After position embedding and layer norm")
+    
+            # Apply Transformer blocks
+            for block in self.encoder_blocks:
+                x = checkpoint(block, x) if self.grad_checkpointing else block(x)
+            x = self.encoder_norm(x)
+            debug_print(x, "Encoder output")
+            return x
 
 
 def forward_mae_decoder(self, x, mask):
