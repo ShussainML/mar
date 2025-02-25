@@ -30,11 +30,11 @@ def mask_by_order(mask_len, order, bsz, seq_len):
 
 
 class MAR(nn.Module):
-    def __init__(self, img_size=256, vae_stride=16, patch_size=1,
+    def __init__(self, img_size=64, vae_stride=16, patch_size=2,
                  encoder_embed_dim=1024, encoder_depth=16, encoder_num_heads=16,
                  decoder_embed_dim=1024, decoder_depth=16, decoder_num_heads=16,
                  mlp_ratio=4., norm_layer=nn.LayerNorm,
-                 vae_embed_dim=16,
+                 vae_embed_dim=8,
                  mask_ratio_min=0.7,
                  label_drop_prob=0.1,
                  class_num=1000,
@@ -43,11 +43,21 @@ class MAR(nn.Module):
                  buffer_size=64,
                  diffloss_d=3,
                  diffloss_w=1024,
-                 num_sampling_steps='100',
+                 num_sampling_steps='50',
                  diffusion_batch_mul=4,
                  grad_checkpointing=False,
                  device=None):
         super().__init__()
+
+        # Compute seq_len and token_embed_dim before they are used
+        self.img_size = img_size
+        self.vae_stride = vae_stride
+        self.patch_size = patch_size
+        self.seq_h = self.seq_w = img_size // vae_stride // patch_size
+        self.seq_len = self.seq_h * self.seq_w  # Compute seq_len here
+        self.vae_embed_dim = vae_embed_dim
+        self.token_embed_dim = vae_embed_dim * patch_size**2  # Compute token_embed_dim here
+
         # Patch projection layer
         self.patch_proj = nn.Conv2d(
             in_channels=3,  # Assuming input images have 3 channels
@@ -55,6 +65,8 @@ class MAR(nn.Module):
             kernel_size=1,  # 1x1 convolution to project channels
             stride=vae_stride  # Match the VAE stride to maintain spatial dimensions
         )
+
+        # Rest of the initialization...
         self.num_classes = class_num
         self.class_emb = nn.Embedding(class_num, encoder_embed_dim)
         self.label_drop_prob = label_drop_prob
