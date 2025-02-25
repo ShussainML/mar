@@ -234,27 +234,29 @@ class MAR(nn.Module):
     def forward_mae_encoder(self, x, mask, class_embedding):
         print(f"Shape of x before z_proj: {x.shape}")  # Debug shape
         x = self.z_proj(x)
-        bsz, seq_len, embed_dim = x.shape
         print(f"Shape of x after z_proj: {x.shape}")  # Debug shape
-    
+        
+        bsz, seq_len, embed_dim = x.shape
+        print(f"Batch size: {bsz}, Sequence length: {seq_len}, Embedding dim: {embed_dim}")  # Debug shape
+        
         # Concat buffer
         x = torch.cat([torch.zeros(bsz, self.buffer_size, embed_dim, device=x.device), x], dim=1)
         print(f"Shape of x after concat buffer: {x.shape}")  # Debug shape
-    
+        
         # Add class embedding
         x[:, :self.buffer_size] = class_embedding.unsqueeze(1)
         print(f"Shape of x after adding class embedding: {x.shape}")  # Debug shape
-    
+        
         # Encoder position embedding
         print(f"Shape of encoder_pos_embed_learned: {self.encoder_pos_embed_learned.shape}")  # Debug shape
         if x.shape[1] != self.encoder_pos_embed_learned.shape[1]:
             raise ValueError(f"Shape mismatch: x has seq_len {x.shape[1]}, but encoder_pos_embed_learned has seq_len {self.encoder_pos_embed_learned.shape[1]}")
         x = x + self.encoder_pos_embed_learned
         x = self.z_proj_ln(x)
-
+    
         # dropping
         x = x[(1-mask_with_buffer).nonzero(as_tuple=True)].reshape(bsz, -1, embed_dim)
-
+    
         # apply Transformer blocks
         if self.grad_checkpointing and not torch.jit.is_scripting():
             for block in self.encoder_blocks:
@@ -263,22 +265,29 @@ class MAR(nn.Module):
             for block in self.encoder_blocks:
                 x = block(x)
         x = self.encoder_norm(x)
-
+    
         return x
-
+        
     def forward_mae_decoder(self, x, mask):
-
+        print(f"Shape of x before decoder_embed: {x.shape}")  # Debug shape
         x = self.decoder_embed(x)
+        print(f"Shape of x after decoder_embed: {x.shape}")  # Debug shape
+        
         mask_with_buffer = torch.cat([torch.zeros(x.size(0), self.buffer_size, device=x.device), mask], dim=1)
-
+        print(f"Shape of mask_with_buffer: {mask_with_buffer.shape}")  # Debug shape
+    
         # pad mask tokens
         mask_tokens = self.mask_token.repeat(mask_with_buffer.shape[0], mask_with_buffer.shape[1], 1).to(x.dtype)
+        print(f"Shape of mask_tokens: {mask_tokens.shape}")  # Debug shape
+        
         x_after_pad = mask_tokens.clone()
         x_after_pad[(1 - mask_with_buffer).nonzero(as_tuple=True)] = x.reshape(x.shape[0] * x.shape[1], x.shape[2])
-
+        print(f"Shape of x_after_pad: {x_after_pad.shape}")  # Debug shape
+    
         # decoder position embedding
         x = x_after_pad + self.decoder_pos_embed_learned
-
+        print(f"Shape of x after decoder_pos_embed_learned: {x.shape}")  # Debug shape
+    
         # apply Transformer blocks
         if self.grad_checkpointing and not torch.jit.is_scripting():
             for block in self.decoder_blocks:
@@ -287,17 +296,30 @@ class MAR(nn.Module):
             for block in self.decoder_blocks:
                 x = block(x)
         x = self.decoder_norm(x)
-
+    
         x = x[:, self.buffer_size:]
         x = x + self.diffusion_pos_embed_learned
+        print(f"Shape of x after diffusion_pos_embed_learned: {x.shape}")  # Debug shape
+        
         return x
 
     def forward_loss(self, z, target, mask):
+        print(f"Shape of z: {z.shape}")  # Debug shape
+        print(f"Shape of target: {target.shape}")  # Debug shape
+        print(f"Shape of mask: {mask.shape}")  # Debug shape
+        
         bsz, seq_len, _ = target.shape
         target = target.reshape(bsz * seq_len, -1).repeat(self.diffusion_batch_mul, 1)
-        z = z.reshape(bsz*seq_len, -1).repeat(self.diffusion_batch_mul, 1)
-        mask = mask.reshape(bsz*seq_len).repeat(self.diffusion_batch_mul)
+        z = z.reshape(bsz * seq_len, -1).repeat(self.diffusion_batch_mul, 1)
+        mask = mask.reshape(bsz * seq_len).repeat(self.diffusion_batch_mul)
+        
+        print(f"Shape of target after reshape: {target.shape}")  # Debug shape
+        print(f"Shape of z after reshape: {z.shape}")  # Debug shape
+        print(f"Shape of mask after reshape: {mask.shape}")  # Debug shape
+        
         loss = self.diffloss(z=z, target=target, mask=mask)
+        print(f"Shape of loss: {loss.shape if isinstance(loss, torch.Tensor) else 'scalar'}")  # Debug shape
+        
         return loss
 
     def forward(self, imgs, labels):
