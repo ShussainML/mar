@@ -230,15 +230,38 @@ class MAR(nn.Module):
     
     
     def random_masking(self, x, orders):
-            """Generate token mask based on random orders."""
-            bsz, seq_len, embed_dim = x.shape
-            mask_rate = self.mask_ratio_generator.rvs(1)[0]
-            num_masked_tokens = int(np.ceil(seq_len * mask_rate))
-            mask = torch.zeros(bsz, seq_len, device=x.device)
-            mask = torch.scatter(mask, dim=-1, index=orders[:, :num_masked_tokens],
-                                 src=torch.ones(bsz, seq_len, device=x.device))
-            debug_print(mask, "Random mask")
-            return mask
+        """Generate token mask based on random orders."""
+        bsz, seq_len, embed_dim = x.shape
+        mask_rate = self.mask_ratio_generator.rvs(1)[0]
+        num_masked_tokens = int(np.ceil(seq_len * mask_rate))
+    
+        # Debugging: Print shapes and values
+        print(f"[Debug] mask_rate: {mask_rate}")
+        print(f"[Debug] num_masked_tokens: {num_masked_tokens}")
+        print(f"[Debug] orders shape: {orders.shape}")
+        print(f"[Debug] orders values: {orders}")
+    
+        # Ensure num_masked_tokens does not exceed seq_len
+        num_masked_tokens = min(num_masked_tokens, seq_len)
+    
+        # Initialize mask
+        mask = torch.zeros(bsz, seq_len, device=x.device)
+    
+        # Debugging: Print mask shape
+        print(f"[Debug] mask shape: {mask.shape}")
+    
+        # Scatter ones into the mask
+        mask = torch.scatter(
+            mask, 
+            dim=-1, 
+            index=orders[:, :num_masked_tokens], 
+            src=torch.ones(bsz, seq_len, device=x.device)
+        )
+    
+        # Debugging: Print final mask
+        print(f"[Debug] final mask: {mask}")
+    
+        return mask
 
 
     def forward_mae_encoder(self, x, mask, class_embedding):
