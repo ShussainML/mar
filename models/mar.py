@@ -33,26 +33,34 @@ def mask_by_order(mask_len, order, bsz, seq_len):
 
 class MAR(nn.Module):
     def __init__(self, img_size=64, vae_stride=16, patch_size=2,
-                 encoder_embed_dim=1024, encoder_depth=16, encoder_num_heads=16,
-                 decoder_embed_dim=1024, decoder_depth=16, decoder_num_heads=16,
-                 mlp_ratio=4., norm_layer=nn.LayerNorm,
-                 vae_embed_dim=8,
-                 mask_ratio_min=0.7,
-                 label_drop_prob=0.1,
-                 class_num=1000,
-                 attn_dropout=0.1,
-                 proj_dropout=0.1,
-                 buffer_size=64,
-                 diffloss_d=3,
-                 diffloss_w=1024,
-                 num_sampling_steps='50',
-                 diffusion_batch_mul=4,
-                 grad_checkpointing=False,
-                 device=None):
-        super().__init__()
+             encoder_embed_dim=1024, encoder_depth=16, encoder_num_heads=16,
+             decoder_embed_dim=1024, decoder_depth=16, decoder_num_heads=16,
+             mlp_ratio=4., norm_layer=nn.LayerNorm,
+             vae_embed_dim=8,
+             mask_ratio_min=0.7,  # Add this parameter
+             label_drop_prob=0.1,
+             class_num=1000,
+             attn_dropout=0.1,
+             proj_dropout=0.1,
+             buffer_size=64,
+             diffloss_d=3,
+             diffloss_w=1024,
+             num_sampling_steps='50',
+             diffusion_batch_mul=4,
+             grad_checkpointing=False,
+             device=None):
+    super().__init__()
 
-        # Set device
-        self.device = device if device is not None else 'cuda' if torch.cuda.is_available() else 'cpu'
+    # Set device
+    self.device = device if device is not None else 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    # Add mask_ratio_min as an attribute
+    self.mask_ratio_min = mask_ratio_min
+
+    # Initialize mask_ratio_generator
+    self.mask_ratio_generator = stats.truncnorm(
+        (mask_ratio_min - 1.0) / 0.25, 0, loc=1.0, scale=0.25
+    )
 
         # Compute seq_len and token_embed_dim before they are used
         self.img_size = img_size
