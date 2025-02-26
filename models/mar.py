@@ -236,33 +236,24 @@ class MAR(nn.Module):
         bsz, seq_len, embed_dim = x.shape
         mask_rate = np.clip(self.mask_ratio_generator.rvs(1)[0], self.mask_ratio_min, 1.0)
         num_masked_tokens = int(np.ceil(seq_len * mask_rate))
-
-        # Debugging: Print shapes and values
-        print(f"[Debug] mask_rate: {mask_rate}")
-        print(f"[Debug] num_masked_tokens: {num_masked_tokens}")
-        print(f"[Debug] orders shape: {orders.shape}")
-        print(f"[Debug] orders values: {orders}")
-
+    
         # Ensure num_masked_tokens does not exceed seq_len
         num_masked_tokens = min(num_masked_tokens, seq_len)
-
+    
         # Initialize mask
-        mask = torch.zeros(bsz, seq_len, device=x.device)
-
-        # Debugging: Print mask shape
-        print(f"[Debug] mask shape: {mask.shape}")
-
-        # Scatter ones into the mask
-        mask = torch.scatter(
-            mask, 
-            dim=-1, 
-            index=orders[:, :num_masked_tokens], 
-            src=torch.ones(bsz, num_masked_tokens, device=x.device)
-        )
-
-        # Debugging: Print final mask
-        print(f"[Debug] final mask: {mask}")
-
+        mask = torch.zeros(bsz, seq_len, device=x.device, dtype=torch.bool)  # Use bool dtype
+    
+        # Create the mask by selecting the indices using gather instead of scatter
+        # This approach should ensure that indices are always within bounds
+        for i in range(bsz):
+            # Gather the indices to be masked
+            masked_indices = torch.gather(torch.arange(seq_len, device=x.device), 0, orders[i][:num_masked_tokens])
+            # Set the corresponding elements in the mask to True
+            mask[i, masked_indices] = True 
+    
+        # Reshape mask to match input shape
+        mask = mask.unsqueeze(-1).repeat(1, 1, embed_dim)  # Reshape mask
+    
         return mask
 
     def forward_mae_encoder(self, x, mask, class_embedding):
