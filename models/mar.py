@@ -227,7 +227,6 @@ class MAR(nn.Module):
             return x
         
     def random_masking(self, x, orders):
-        """Generate token mask based on random orders."""
         bsz, seq_len, embed_dim = x.shape
         mask_rate = np.clip(self.mask_ratio_generator.rvs(1)[0], self.mask_ratio_min, 1.0)
         num_masked_tokens = int(np.ceil(seq_len * mask_rate))
