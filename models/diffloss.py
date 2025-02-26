@@ -21,12 +21,31 @@ class DiffLoss(nn.Module):
 
         # Define the network for diffusion
         self.net = SimpleMLPAdaLN(
-            in_channels=49152,  # Set in_channels to 49152 (flattened input size)
+            in_channels=target_channels * 16 * 16,  # Adjust based on input size
             model_channels=width,
-            z_channels=z_channels,  # Non-default argument
-            num_res_blocks=depth,  # Non-default argument
-            out_channels=32  # Default argument
+            z_channels=z_channels,
+            num_res_blocks=depth,
+            out_channels=target_channels,
+            grad_checkpointing=True
         )
+
+    def forward(self, target, z, mask=None):
+        # Flatten target and z
+        target = target.view(target.size(0), -1)  # [batch_size, target_channels * H * W]
+        z = z.view(z.size(0), -1)                # [batch_size, z_channels * H * W]
+
+        # Compute the diffusion loss
+        t = torch.randint(0, self.train_diffusion.num_timesteps, (target.shape[0],), device=target.device)
+        model_kwargs = dict(c=z)
+        loss_dict = self.train_diffusion.training_losses(self.net, target, t, model_kwargs)
+        loss = loss_dict["loss"]
+
+        # Apply mask if provided
+        if mask is not None:
+            mask = mask / mask.sum()  # Normalize mask
+            loss = (loss * mask).sum()
+
+        return loss
 
     def forward(self, target, z, mask=None):
         # Debug: Print shapes of target and z
@@ -64,6 +83,7 @@ class DiffLoss(nn.Module):
         )
 
         return sampled_token_latent
+
 
 
 def modulate(x, shift, scale):
