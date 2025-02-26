@@ -211,9 +211,7 @@ class MAR(nn.Module):
         x = x.reshape(bsz, c, h_patches * p, w_patches * p)
         debug_print(x, "Unpatchified output")
         return x
-
-
-
+        
     def patchify(self, x):
             """Convert images into patches and project to vae_embed_dim."""
             debug_print(x, "Input to patchify")
@@ -227,9 +225,8 @@ class MAR(nn.Module):
             x = x.view(bsz, -1, self.token_embed_dim)
             debug_print(x, "Final patchified output")
             return x
-    
-    
-   def random_masking(self, x, orders):
+        
+    def random_masking(self, x, orders):
         """Generate token mask based on random orders."""
         bsz, seq_len, embed_dim = x.shape
         mask_rate = np.clip(self.mask_ratio_generator.rvs(1)[0], self.mask_ratio_min, 1.0)
@@ -262,8 +259,7 @@ class MAR(nn.Module):
         print(f"[Debug] final mask: {mask}")
     
         return mask
-
-
+        
     def forward_mae_encoder(self, x, mask, class_embedding):
             """Forward pass through the MAE encoder."""
             debug_print(x, "Input to encoder")
