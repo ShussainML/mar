@@ -261,7 +261,7 @@ class MAR(nn.Module):
         # Debugging: Print final mask
         print(f"[Debug] final mask: {mask}")
 
-    return mask
+        return mask
 
 
     def forward_mae_encoder(self, x, mask, class_embedding):
