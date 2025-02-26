@@ -33,34 +33,34 @@ def mask_by_order(mask_len, order, bsz, seq_len):
 
 class MAR(nn.Module):
     def __init__(self, img_size=64, vae_stride=16, patch_size=2,
-             encoder_embed_dim=1024, encoder_depth=16, encoder_num_heads=16,
-             decoder_embed_dim=1024, decoder_depth=16, decoder_num_heads=16,
-             mlp_ratio=4., norm_layer=nn.LayerNorm,
-             vae_embed_dim=8,
-             mask_ratio_min=0.7,  # Add this parameter
-             label_drop_prob=0.1,
-             class_num=1000,
-             attn_dropout=0.1,
-             proj_dropout=0.1,
-             buffer_size=64,
-             diffloss_d=3,
-             diffloss_w=1024,
-             num_sampling_steps='50',
-             diffusion_batch_mul=4,
-             grad_checkpointing=False,
-             device=None):
-    super().__init__()
+                 encoder_embed_dim=1024, encoder_depth=16, encoder_num_heads=16,
+                 decoder_embed_dim=1024, decoder_depth=16, decoder_num_heads=16,
+                 mlp_ratio=4., norm_layer=nn.LayerNorm,
+                 vae_embed_dim=8,
+                 mask_ratio_min=0.7,  # Add this parameter
+                 label_drop_prob=0.1,
+                 class_num=1000,
+                 attn_dropout=0.1,
+                 proj_dropout=0.1,
+                 buffer_size=64,
+                 diffloss_d=3,
+                 diffloss_w=1024,
+                 num_sampling_steps='50',
+                 diffusion_batch_mul=4,
+                 grad_checkpointing=False,
+                 device=None):
+        super().__init__()
 
-    # Set device
-    self.device = device if device is not None else 'cuda' if torch.cuda.is_available() else 'cpu'
+        # Set device
+        self.device = device if device is not None else 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    # Add mask_ratio_min as an attribute
-    self.mask_ratio_min = mask_ratio_min
+        # Add mask_ratio_min as an attribute
+        self.mask_ratio_min = mask_ratio_min
 
-    # Initialize mask_ratio_generator
-    self.mask_ratio_generator = stats.truncnorm(
-        (mask_ratio_min - 1.0) / 0.25, 0, loc=1.0, scale=0.25
-    )
+        # Initialize mask_ratio_generator
+        self.mask_ratio_generator = stats.truncnorm(
+            (mask_ratio_min - 1.0) / 0.25, 0, loc=1.0, scale=0.25
+        )
 
         # Compute seq_len and token_embed_dim before they are used
         self.img_size = img_size
@@ -84,9 +84,6 @@ class MAR(nn.Module):
         self.class_emb = nn.Embedding(class_num, encoder_embed_dim)
         self.label_drop_prob = label_drop_prob
         self.fake_latent = nn.Parameter(torch.zeros(1, encoder_embed_dim))
-
-        # Masking ratio generator
-        self.mask_ratio_generator = stats.truncnorm((mask_ratio_min - 1.0) / 0.25, 0, loc=1.0, scale=0.25)
 
         # Encoder specifics
         self.z_proj = nn.Linear(self.token_embed_dim, encoder_embed_dim, bias=True)
@@ -219,41 +216,42 @@ class MAR(nn.Module):
         x = x.reshape(bsz, c, h_patches * p, w_patches * p)
         debug_print(x, "Unpatchified output")
         return x
-        
+
     def patchify(self, x):
-            """Convert images into patches and project to vae_embed_dim."""
-            debug_print(x, "Input to patchify")
-            x = self.patch_proj(x)
-            debug_print(x, "After patch_proj")
-            bsz, c, h, w = x.shape
-            p = self.patch_size
-            s = self.vae_stride
-            x = x.unfold(2, p, s).unfold(3, p, s)
-            x = x.permute(0, 2, 3, 1, 4, 5).contiguous()
-            x = x.view(bsz, -1, self.token_embed_dim)
-            debug_print(x, "Final patchified output")
-            return x
-        
+        """Convert images into patches and project to vae_embed_dim."""
+        debug_print(x, "Input to patchify")
+        x = self.patch_proj(x)
+        debug_print(x, "After patch_proj")
+        bsz, c, h, w = x.shape
+        p = self.patch_size
+        s = self.vae_stride
+        x = x.unfold(2, p, s).unfold(3, p, s)
+        x = x.permute(0, 2, 3, 1, 4, 5).contiguous()
+        x = x.view(bsz, -1, self.token_embed_dim)
+        debug_print(x, "Final patchified output")
+        return x
+
     def random_masking(self, x, orders):
+        """Generate token mask based on random orders."""
         bsz, seq_len, embed_dim = x.shape
         mask_rate = np.clip(self.mask_ratio_generator.rvs(1)[0], self.mask_ratio_min, 1.0)
         num_masked_tokens = int(np.ceil(seq_len * mask_rate))
-    
+
         # Debugging: Print shapes and values
         print(f"[Debug] mask_rate: {mask_rate}")
         print(f"[Debug] num_masked_tokens: {num_masked_tokens}")
         print(f"[Debug] orders shape: {orders.shape}")
         print(f"[Debug] orders values: {orders}")
-    
+
         # Ensure num_masked_tokens does not exceed seq_len
         num_masked_tokens = min(num_masked_tokens, seq_len)
-    
+
         # Initialize mask
         mask = torch.zeros(bsz, seq_len, device=x.device)
-    
+
         # Debugging: Print mask shape
         print(f"[Debug] mask shape: {mask.shape}")
-    
+
         # Scatter ones into the mask
         mask = torch.scatter(
             mask, 
@@ -261,33 +259,32 @@ class MAR(nn.Module):
             index=orders[:, :num_masked_tokens], 
             src=torch.ones(bsz, num_masked_tokens, device=x.device)
         )
-    
+
         # Debugging: Print final mask
         print(f"[Debug] final mask: {mask}")
-    
+
         return mask
-        
+
     def forward_mae_encoder(self, x, mask, class_embedding):
-            """Forward pass through the MAE encoder."""
-            debug_print(x, "Input to encoder")
-            x = self.z_proj(x)
-            debug_print(x, "After z_proj")
-            bsz, seq_len, embed_dim = x.shape
-            x = torch.cat([torch.zeros(bsz, self.buffer_size, embed_dim, device=x.device), x], dim=1)
-            x[:, :self.buffer_size] = class_embedding.unsqueeze(1)
-            x = x + self.encoder_pos_embed_learned
-            x = self.z_proj_ln(x)
-            debug_print(x, "After position embedding and layer norm")
-    
-            # Apply Transformer blocks
-            for block in self.encoder_blocks:
-                x = checkpoint(block, x) if self.grad_checkpointing else block(x)
-            x = self.encoder_norm(x)
-            debug_print(x, "Encoder output")
-            return x
+        """Forward pass through the MAE encoder."""
+        debug_print(x, "Input to encoder")
+        x = self.z_proj(x)
+        debug_print(x, "After z_proj")
+        bsz, seq_len, embed_dim = x.shape
+        x = torch.cat([torch.zeros(bsz, self.buffer_size, embed_dim, device=x.device), x], dim=1)
+        x[:, :self.buffer_size] = class_embedding.unsqueeze(1)
+        x = x + self.encoder_pos_embed_learned
+        x = self.z_proj_ln(x)
+        debug_print(x, "After position embedding and layer norm")
 
+        # Apply Transformer blocks
+        for block in self.encoder_blocks:
+            x = checkpoint(block, x) if self.grad_checkpointing else block(x)
+        x = self.encoder_norm(x)
+        debug_print(x, "Encoder output")
+        return x
 
-def forward_mae_decoder(self, x, mask):
+    def forward_mae_decoder(self, x, mask):
         """Forward pass through the MAE decoder."""
         debug_print(x, "Input to decoder")
         x = self.decoder_embed(x)
@@ -307,7 +304,8 @@ def forward_mae_decoder(self, x, mask):
         x = x + self.diffusion_pos_embed_learned
         debug_print(x, "Decoder output")
         return x
-def forward_loss(self, z, target, mask):
+
+    def forward_loss(self, z, target, mask):
         """Compute the diffusion loss."""
         debug_print(z, "Input z to forward_loss")
         debug_print(target, "Input target to forward_loss")
